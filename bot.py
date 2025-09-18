@@ -4,7 +4,7 @@ from typing import Any
 import logging
 
 from aiogram import Bot, Dispatcher, F, Router
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.filters.command import CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -24,6 +24,11 @@ settings = get_settings()
 bot = Bot(token=settings.BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
 router = Router()
+
+
+@router.message(Command("ping"))
+async def cmd_ping(message: Message) -> None:
+    await message.answer("pong")
 
 
 class FillProfile(StatesGroup):

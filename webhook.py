@@ -9,6 +9,7 @@ from .bot import bot, dp
 from .db import init_db
 
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 settings = get_settings()
 app = FastAPI(title="Girls Quiz Bot")
