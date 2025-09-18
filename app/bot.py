@@ -4,7 +4,7 @@ from typing import Any
 import logging
 
 from aiogram import Bot, Dispatcher, F, Router
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart, Command, StateFilter
 from aiogram.filters.command import CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -95,13 +95,14 @@ async def ask_next_profile_question(message: Message, state: FSMContext) -> None
 
     await message.answer(f"Вопрос {idx + 1}. {get_question_text(idx)}")
     await state.set_state(FillProfile.waiting_answer)
+    logger.info("state set -> FillProfile.waiting_answer chat_id=%s", message.chat.id)
 
 
-@router.message(F.state == FillProfile.waiting_answer)
+@router.message(StateFilter(FillProfile.waiting_answer))
 async def on_profile_answer(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     idx: int = int(data.get("idx", 0))
-    logger.info("on_profile_answer idx=%s chat_id=%s", idx, message.chat.id)
+    logger.info("on_profile_answer idx=%s chat_id=%s text=%s", idx, message.chat.id, message.text)
     answers: dict[str, str] = dict(data.get("answers", {}))
     answers[get_question_key(idx)] = (message.text or "").strip()
     await state.update_data(answers=answers, idx=idx + 1)
@@ -139,17 +140,28 @@ async def ask_next_guess_question(message: Message, state: FSMContext) -> None:
 
     await message.answer(f"Угадай: {get_question_text(idx)}")
     await state.set_state(GuessProfile.waiting_guess)
+    logger.info("state set -> GuessProfile.waiting_guess chat_id=%s", message.chat.id)
 
 
-@router.message(F.state == GuessProfile.waiting_guess)
+@router.message(StateFilter(GuessProfile.waiting_guess))
 async def on_guess_answer(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     idx: int = int(data.get("idx", 0))
-    logger.info("on_guess_answer idx=%s chat_id=%s", idx, message.chat.id)
+    logger.info("on_guess_answer idx=%s chat_id=%s text=%s", idx, message.chat.id, message.text)
     guesses: dict[str, str] = dict(data.get("guesses", {}))
     guesses[get_question_key(idx)] = (message.text or "").strip()
     await state.update_data(guesses=guesses, idx=idx + 1)
     await ask_next_guess_question(message, state)
+
+
+@router.message()
+async def fallback_log(message: Message, state: FSMContext) -> None:
+    # Log unmatched messages with current FSM state for diagnostics
+    try:
+        current = await state.get_state()
+    except Exception:
+        current = None
+    logger.info("fallback_log: unmatched message chat_id=%s text=%s state=%s", message.chat.id, message.text, current)
 
 
 async def finish_guessing_and_score(message: Message, state: FSMContext) -> None:
