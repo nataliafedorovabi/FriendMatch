@@ -10,6 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
 from aiogram.client.default import DefaultBotProperties
+from aiogram.fsm.storage.memory import MemoryStorage
 
 from sqlalchemy import select, delete
 
@@ -22,7 +23,8 @@ from .questions import QUESTIONS, get_question_key, get_question_text
 logger = logging.getLogger(__name__)
 settings = get_settings()
 bot = Bot(token=settings.BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
-dp = Dispatcher()
+# Enable FSM storage (in-memory). For production scaling, switch to RedisStorage later.
+dp = Dispatcher(storage=MemoryStorage())
 router = Router()
 
 
@@ -45,7 +47,6 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
     logger.info("/start entered chat_id=%s user_id=%s args=%s", message.chat.id, message.from_user.id, command.args)
     args = (command.args or "").strip()
 
-    # Try to ensure user exists, but don't fail /start if DB unavailable
     try:
         async with get_session() as session:
             user = await session.scalar(select(User).where(User.tg_id == message.from_user.id))
@@ -71,7 +72,6 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
         await ask_next_guess_question(message, state)
         return
 
-    # Default: start profile fill
     await state.clear()
     await state.update_data(idx=0, answers={})
     await message.answer(
@@ -85,7 +85,6 @@ async def ask_next_profile_question(message: Message, state: FSMContext) -> None
     idx: int = int(data.get("idx", 0))
     logger.info("ask_next_profile_question idx=%s chat_id=%s", idx, message.chat.id)
     if idx >= len(QUESTIONS):
-        # Save answers and finish (best-effort)
         await save_profile_answers(message, state)
         link = f"https://t.me/{settings.BOT_USERNAME}?start=guess_{message.from_user.id}"
         await message.answer(
@@ -158,7 +157,6 @@ async def finish_guessing_and_score(message: Message, state: FSMContext) -> None
     target_tg_id: int = int(data.get("target_tg_id", 0))
     guesses: dict[str, str] = dict(data.get("guesses", {}))
 
-    # Need DB to score; fail gracefully if unavailable
     try:
         async with get_session() as session:
             owner = await session.scalar(select(User).where(User.tg_id == target_tg_id))
