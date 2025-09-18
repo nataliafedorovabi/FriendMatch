@@ -28,6 +28,7 @@ router = Router()
 
 @router.message(Command("ping"))
 async def cmd_ping(message: Message) -> None:
+    logger.info("/ping from chat_id=%s user_id=%s", message.chat.id, message.from_user.id)
     await message.answer("pong")
 
 
@@ -41,6 +42,7 @@ class GuessProfile(StatesGroup):
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject, state: FSMContext) -> None:
+    logger.info("/start entered chat_id=%s user_id=%s args=%s", message.chat.id, message.from_user.id, command.args)
     args = (command.args or "").strip()
 
     # Try to ensure user exists, but don't fail /start if DB unavailable
@@ -81,6 +83,7 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
 async def ask_next_profile_question(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     idx: int = int(data.get("idx", 0))
+    logger.info("ask_next_profile_question idx=%s chat_id=%s", idx, message.chat.id)
     if idx >= len(QUESTIONS):
         # Save answers and finish (best-effort)
         await save_profile_answers(message, state)
@@ -99,6 +102,7 @@ async def ask_next_profile_question(message: Message, state: FSMContext) -> None
 async def on_profile_answer(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     idx: int = int(data.get("idx", 0))
+    logger.info("on_profile_answer idx=%s chat_id=%s", idx, message.chat.id)
     answers: dict[str, str] = dict(data.get("answers", {}))
     answers[get_question_key(idx)] = (message.text or "").strip()
     await state.update_data(answers=answers, idx=idx + 1)
@@ -128,6 +132,7 @@ async def save_profile_answers(message: Message, state: FSMContext) -> None:
 async def ask_next_guess_question(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     idx: int = int(data.get("idx", 0))
+    logger.info("ask_next_guess_question idx=%s chat_id=%s", idx, message.chat.id)
     if idx >= len(QUESTIONS):
         await finish_guessing_and_score(message, state)
         await state.clear()
@@ -141,6 +146,7 @@ async def ask_next_guess_question(message: Message, state: FSMContext) -> None:
 async def on_guess_answer(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     idx: int = int(data.get("idx", 0))
+    logger.info("on_guess_answer idx=%s chat_id=%s", idx, message.chat.id)
     guesses: dict[str, str] = dict(data.get("guesses", {}))
     guesses[get_question_key(idx)] = (message.text or "").strip()
     await state.update_data(guesses=guesses, idx=idx + 1)
